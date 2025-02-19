@@ -1,3 +1,4 @@
+import logging
 import re
 from collections import Counter, defaultdict
 
@@ -10,18 +11,47 @@ from pydantic import BaseModel
 from sklearn.feature_extraction.text import TfidfVectorizer
 from transformers import pipeline
 
-nltk.download("punkt")
-
-# Load NLP models
-nlp = spacy.load("en_core_web_sm")
-summarizer = pipeline("summarization")
-sentiment_analyzer = pipeline("sentiment-analysis")
-
 app = FastAPI()
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+nltk.download("punkt")
+
+# Load NLP models and log the process (the api will not return anything if the models fail to load)
+try:
+    logger.info("Loading NLP models...")
+    nlp = spacy.load("en_core_web_sm")
+    logger.info("Loaded spaCy model 'en_core_web_sm'.")
+except Exception as e:
+    logger.error(f"Error loading spaCy model: {e}")
+
+try:
+    logger.info("Loading summarization model...")
+    summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+    logger.info("Summarization model loaded.")
+except Exception as e:
+    logger.error(f"Error loading summarization model: {e}")
+
+try:
+    logger.info("Loading sentiment analysis model...")
+    sentiment_analyzer = pipeline("sentiment-analysis")
+    logger.info("Sentiment analysis model loaded.")
+except Exception as e:
+    logger.error(f"Error loading sentiment analysis model: {e}")
+
 # Configurations
-with open("config.yaml", "r") as file:
-    config = yaml.safe_load(file)
+try:
+    with open("config.yaml", "r") as file:
+        config = yaml.safe_load(file)
+    logger.info("Loaded configuration from config.yaml.")
+except FileNotFoundError:
+    logger.error("config.yaml not found.")
+    raise
+except Exception as e:
+    logger.error(f"Error loading configuration: {e}")
+    raise
 
 SUMMARIZATION_MAX_LENGTH = config["summarization"]["max_length"]
 SUMMARIZATION_MIN_LENGTH = config["summarization"]["min_length"]
@@ -36,28 +66,34 @@ class MeetingMinutesRequest(BaseModel):
 
 # Named Entity Extraction
 def extract_entities(text: str):
+    logger.info("Extracting named entities...")
     doc = nlp(text)
     entities = defaultdict(list)
 
     for ent in doc.ents:
         entities[ent.label_].append(ent.text)
 
+    logger.info(f"Extracted entities: {dict(entities)}")
     return {label: list(set(names)) for label, names in entities.items()}
 
 
 # Extract topics using TF-IDF
 def extract_topics(text: str, top_n: int = 5):
+    logger.info("Extracting topics using TF-IDF...")
     sentences = sent_tokenize(text)
     vectorizer = TfidfVectorizer(stop_words="english")
     tfidf_matrix = vectorizer.fit_transform(sentences)
     feature_names = vectorizer.get_feature_names_out()
     scores = tfidf_matrix.sum(axis=0).A1
     topic_scores = sorted(zip(feature_names, scores), key=lambda x: x[1], reverse=True)
-    return [topic for topic, _ in topic_scores[:top_n]]
+    topics = [topic for topic, _ in topic_scores[:top_n]]
+    logger.info(f"Extracted topics: {topics}")
+    return topics
 
 
 # Extract key events (MP contributions and timestamps)
 def extract_key_events(text: str):
+    logger.info("Extracting key events...")
     doc = nlp(text)
     key_events = []
 
@@ -66,19 +102,23 @@ def extract_key_events(text: str):
         if entities:
             key_events.append({"sentence": sent.text, "entities": entities})
 
+    logger.info(f"Extracted key events: {key_events}")
     return key_events
 
 
 # Sentiment Analysis
 def analyze_sentiment(text: str):
+    logger.info("Analyzing sentiment...")
     sentences = sent_tokenize(text)
     sentiments = [sentiment_analyzer(sentence)[0] for sentence in sentences]
     sentiment_counts = Counter([s["label"] for s in sentiments])
+    logger.info(f"Sentiment analysis result: {dict(sentiment_counts)}")
     return dict(sentiment_counts)
 
 
 # Summarization with chunking
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
+    logger.info("Chunking text...")
     sentences = re.split(r"(?<=[.!?])\s+", text)
     chunks, current_chunk = [], ""
 
@@ -92,10 +132,12 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
     if current_chunk:
         chunks.append(current_chunk.strip())
 
+    logger.info(f"Text chunked into {len(chunks)} parts.")
     return chunks
 
 
 def generate_summary(text: str):
+    logger.info("Generating summary...")
     chunks = chunk_text(text)
     summaries = []
 
@@ -108,15 +150,17 @@ def generate_summary(text: str):
                 do_sample=False,
             )[0]["summary_text"]
             summaries.append(summary)
+            logger.info(f"Summary generated for chunk: {summary}")
         except Exception as e:
             summaries.append("[Summary unavailable due to error]")
-            print(f"Summarization error: {e}")
+            logger.error(f"Summarization error: {e}")
 
     return " ".join(summaries)
 
 
 # Simple Regex/Heuristic Evaluation
 def regex_based_extraction(text: str):
+    logger.info("Performing regex-based entity extraction...")
     regex_patterns = {
         "PERSON": r"[A-Z][a-z]+(?:\s[A-Z][a-z]+)*",  # Capitalized names
         "DATE": r"\b\d{1,2}\s[A-Za-z]+\s\d{4}\b",  # e.g., 12 March 2023
@@ -126,6 +170,7 @@ def regex_based_extraction(text: str):
     extracted = {
         label: re.findall(pattern, text) for label, pattern in regex_patterns.items()
     }
+    logger.info(f"Regex extraction result: {extracted}")
     return extracted
 
 
@@ -133,6 +178,9 @@ def regex_based_extraction(text: str):
 async def summarize_text(request: MeetingMinutesRequest):
     if not request.text:
         raise HTTPException(status_code=400, detail="Meeting text is required")
+    logger.info(
+        f"Summarizing text for request: {request.text[:30]}..."
+    )  # log first 30 chars for brevity
     return {"summary": generate_summary(request.text)}
 
 
@@ -140,6 +188,7 @@ async def summarize_text(request: MeetingMinutesRequest):
 async def extract_entities_endpoint(request: MeetingMinutesRequest):
     if not request.text:
         raise HTTPException(status_code=400, detail="Meeting text is required")
+    logger.info(f"Extracting entities from text: {request.text[:30]}...")
     return {"entities": extract_entities(request.text)}
 
 
@@ -147,6 +196,7 @@ async def extract_entities_endpoint(request: MeetingMinutesRequest):
 async def extract_topics_endpoint(request: MeetingMinutesRequest):
     if not request.text:
         raise HTTPException(status_code=400, detail="Meeting text is required")
+    logger.info(f"Extracting topics from text: {request.text[:30]}...")
     return {"topics": extract_topics(request.text)}
 
 
@@ -154,6 +204,7 @@ async def extract_topics_endpoint(request: MeetingMinutesRequest):
 async def analyze_sentiment_endpoint(request: MeetingMinutesRequest):
     if not request.text:
         raise HTTPException(status_code=400, detail="Meeting text is required")
+    logger.info(f"Analyzing sentiment for text: {request.text[:30]}...")
     return {"sentiment_analysis": analyze_sentiment(request.text)}
 
 
@@ -161,6 +212,7 @@ async def analyze_sentiment_endpoint(request: MeetingMinutesRequest):
 async def analyze_minutes(request: MeetingMinutesRequest):
     if not request.text:
         raise HTTPException(status_code=400, detail="Meeting text is required")
+    logger.info(f"Analyzing meeting minutes for text: {request.text[:30]}...")
 
     summary = generate_summary(request.text)
     entities = extract_entities(request.text)
@@ -180,6 +232,7 @@ async def analyze_minutes(request: MeetingMinutesRequest):
         for label in heuristic_entities
     }
 
+    logger.info("Analysis completed successfully.")
     return {
         "summary": summary,
         "entities": entities,
@@ -190,8 +243,3 @@ async def analyze_minutes(request: MeetingMinutesRequest):
         "heuristic_entities": heuristic_entities,
         "evaluation": evaluation,
     }
-
-
-# TODO:
-# Add evaluation as described in test
-# Consider using llamaindex with openai API and a prompt template to extract more complicated insights.

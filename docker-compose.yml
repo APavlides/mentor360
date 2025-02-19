@@ -5,10 +5,11 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000" 
+      - "8000:8000"
     volumes:
-      - .:/app 
+      - ./src:/app/src  # Only mount src directory to avoid cache issues
+      - ./data:/app/data  # Ensure API can access data files
+      - ./cache:/root/.cache # Mount cache directory for persistent model storage (prevents download each time container is started)
     environment:
       - ENV=development
     restart: always
-

@@ -1,0 +1,4 @@
+summarization:
+  max_length: 150 # words
+  min_length: 125
+  chunk_size: 2000 # characters
