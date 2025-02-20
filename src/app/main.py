@@ -8,13 +8,12 @@ import spacy
 import yaml
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from nltk.tokenize import sent_tokenize
-from pydantic import BaseModel
 from sklearn.feature_extraction.text import TfidfVectorizer
 from transformers import pipeline
 
 app = FastAPI()
 
-# Configure logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 

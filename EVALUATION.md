@@ -225,3 +225,23 @@ In the absence of a groundtruth dataset, there are a few options depending on wh
 I will focus on Quality (as that is often what people mean vy evaluation), and consistency, since it is useful to know if API responses are consistent for production use.
 
 There was a recent paper on LLM-as-Judge which looks really promising [A Survey on LLM-as-a-Judge](https://arxiv.org/pdf/2411.15594}). I can see this being particularly powerful when you need a quick way to test how a cheaper model performs against a more expensive model. This is a real concern in application development since it's cost prohibative to use the best LLMs for many applications.
+
+## To Run Evaluation
+
+This is really a demo of how it would work since I don't have enough time to test it fully.
+
+1. Get the service running by following instructions above.
+2. I created a virtualenv using pyenv and installed additional packages required for this evaluation (I have highlighted in the requirements.txt which packages are used for evaluation).
+3. Run the evalution script as a module with arguments.
+
+```python
+python -m src.evaluation.relevancy_evaluation \
+  --query "Can you find any sentences that mention Stuart Black?" \
+  --entity "Stuart Black" \
+  --files \
+  "data/scottish_parliament_report_07_01_25.txt" \
+  "data/scottish_parliament_report_08_10_24.txt" \
+  "data/scottish_parliament_report_10_09_24.txt" \
+  "data/scottish_parliament_report_26_06_24.txt"
+
+```

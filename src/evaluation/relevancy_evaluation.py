@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os
+import re
 from contextlib import ExitStack
 
 from dotenv import load_dotenv
@@ -10,7 +11,6 @@ from llama_index.core.evaluation import RelevancyEvaluator
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 
-# from src.app.main import app  # Adjust import if needed
 from ..app.main import app
 
 # Load environment variables from .env file
@@ -21,7 +21,6 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("OPENAI_API_KEY is not set in the environment variables")
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -58,9 +57,8 @@ def evaluate_relevancy(query: str, entity: str, file_paths: list):
     headers = {"Accept": "application/json"}
     params = {"entity": entity}
 
-    # Open multiple files and send them in the request
     try:
-        with ExitStack() as stack:  # Ensures that files are properly closed after use
+        with ExitStack() as stack:
             files = [
                 (
                     "files",
@@ -76,13 +74,10 @@ def evaluate_relevancy(query: str, entity: str, file_paths: list):
             # Make the request to the FastAPI endpoint
             response = client.post(url, params=params, headers=headers, files=files)
 
-            # Check if the response was successful
             response.raise_for_status()
 
-            # Debug: Print response status
             print(f"Response Status: {response.status_code}")
 
-            # Debug: Print response content
             response_data = response.json()
             print(f"Response JSON: {response_data}")
 
@@ -99,16 +94,10 @@ def evaluate_relevancy(query: str, entity: str, file_paths: list):
         fastapi_sentences = {}
 
     # Query LlamaIndex for sentences containing the same entity
-    query_str = (
-        f"You are an expert in Natural Language Processing. Your task is to identify common Named Entities (NER) in a given text. "
-        f"Return the sentences that contain the entity '{entity}' in a bullet-point format. "
-        "Provide just the sentences, no additional explanations."
-    )
-    llama_index_response = query_engine.query(query_str)
+    # query_str = f"Can you find any sentences that mention {entity}"
+    llama_index_response = query_engine.query(query)
 
     # Split by punctuation marks instead of new lines
-    import re
-
     llama_index_sentences = re.split(r"(?<=[.!?])\s+", llama_index_response.response)
     logger.info(f"LlamaIndex retrieved sentences: {llama_index_sentences}")
 
@@ -144,10 +133,8 @@ def main():
 
     args = parser.parse_args()
 
-    # Perform the relevancy evaluation
     eval_result = evaluate_relevancy(args.query, args.entity, args.files)
 
-    # Print the evaluation results
     logger.info(f"Relevancy Score: {eval_result.score}")
     logger.info(f"Passing: {eval_result.passing}")
     logger.info(f"Feedback: {eval_result.feedback}")
