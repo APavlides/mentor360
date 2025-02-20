@@ -1,33 +1,247 @@
 # Parliamentary Meeting Minutes Analysis
 
-## Objective
+## Overview
 
-Develop a service that allows users to query parliamentary meeting minutes by an entity name, topic or anything else you think is of note. The service should process the provided meeting minutes and return relevant information, in a structured format, given the input query. It is up to you to decide what insights and relationships are meaningful.
+This FastAPI service queries parliamentary meeting minutes and returns relevant information in a structured format.
 
-An example input could simply be:
+## Prerequisites
+
+- Docker
+- Docker Compose
+- MacOS (ARM64) operating system
+
+## Instructions for how to run the service
+
+### **Quick Start (Recommended)**
+
+If you have Docker Compose installed, simply run:
+
+```sh
+docker compose up --build
+```
+
+### Manual Steps (If Not Using Docker Compose)
+
+Build the Docker image:
+
+```sh
+docker buildx build --platform linux/arm64 --no-cache -t fastapi-parliamentary-meeting-analysis --load .
+```
+
+Run the container:
+
+```sh
+docker run -p 8000:8000 fastapi-parliamentary-meeting-analysis
+```
+
+## API Endpoints and curl Examples
+
+# Parliamentary Meeting Minutes Query API
+
+## Overview
+
+This API processes parliamentary meeting minutes and extracts relevant information based on user queries. It supports summarization, entity extraction, topic extraction, and querying by entity name or topic.
+
+## Features
+
+- **Summarization**: Generates a concise summary of the meeting minutes.
+- **Entity Extraction**: Identifies named entities (e.g., persons, organizations, dates) in the text.
+- **Topic Extraction**: Uses TF-IDF to determine key topics in the meeting minutes.
+- **Querying**: Allows users to filter relevant sentences based on a specified entity name or topic.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- `pip install -r requirements.txt`
+
+## Running the API
+
+```sh
+uvicorn main:app --reload
+```
+
+## API Endpoints
+
+# Parliamentary Meeting Minutes Query API
+
+## Overview
+
+This API processes parliamentary meeting minutes and extracts relevant information based on user queries. It supports summarization, entity extraction, topic extraction, and querying by entity name or topic.
+
+## Features
+
+- **Summarization (Optional)**: Generates a concise summary of the meeting minutes if requested.
+- **Entity Extraction**: Identifies named entities (e.g., persons, organizations, dates) in the text.
+- **Topic Extraction**: Uses TF-IDF to determine key topics in the meeting minutes.
+- **Querying**: Allows users to filter relevant sentences based on a specified entity name or topic.
+- **Metadata Extraction**: Retrieves all detected entities and topics from uploaded files.
+- **Multiple File Support**: Users can upload multiple `.txt` files in a single request.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- `pip install -r requirements.txt`
+
+## Running the API
+
+```sh
+uvicorn main:app --reload
+```
+
+## API Endpoints
+
+### 1. Upload and Extract Metadata (Entities & Topics)
+
+**Endpoint:**
 
 ```
-{"entity": <str_value>}
+POST /extract_metadata
 ```
 
-and an example output could be:
+**Request:**
+
+- Upload one or more `.txt` files containing meeting minutes.
+
+**Response:**
+
+```json
+{
+  "metadata": {
+    "file1.txt": {
+      "entities": { "PERSON": ["John Doe"], "ORG": ["Parliament"] },
+      "topics": ["economy", "policy"]
+    },
+    "file2.txt": {
+      "entities": { "PERSON": ["Jane Smith"], "ORG": ["Government"] },
+      "topics": ["healthcare", "reform"]
+    }
+  }
+}
+```
+
+### 2. Query Meeting Minutes by Entity or Topic
+
+**Endpoint:**
 
 ```
-{"meeting_dates_present": <list_str_value>, "contributions": <dict_values>, "key_events": <dict_values>}
+POST /query
 ```
 
-This is purely an example to highlight the kind of structured input and outputs expected. You can expand beyond simple entity names as an input, it could be a free text question or an overall sentiment value for instance (that would return any speaker contributions matching sentiment value). It's really up to you to decide how to approach the data and problem!
+**Request:**
 
-Please design your solution thoughtfully, applying relevant software design patterns and best practices to ensure maintainability, scalability, and clarity. An ideal solution is straightforward for others to understand, collaborate on, and extend.
+- Upload one or more `.txt` files.
+- (Optional) Provide an entity name or topic as query parameters.
+- (Optional) Include `summarize=true` in the query to enable summarization.
 
-**Background**  
-You have been provided with a small sample of parliamentary meeting minutes in text format. These documents contain transcripts of various MPs' speeches, which includes their names, timestamps and the content of their contributions. The goal is to create a system that can efficiently process this data and provide meaningful insights through an accessible interface. You are free to use any pre-trained models via API or locally as you see fit, or even train models if you think it is appropriate.
+**Response:**
 
-**Evaluation**  
-Your submission will be evaluated against demonstrating applied Machine Learning skills and Engineering competency, particularly around Large Language Models. There are no right or wrong answers we are looking for in terms of output fields, rather we are trying to examine how you approach an open-ended problem and frame it appropriately as an ML Engineer. Although output fields are yours to derive, we are especially interested in efforts to determine behaviour cwonsistency and measure said output quality via an evaluation framework of your design. How you develop and present your solution is the important bit, so take care to think of it holistically rather than focusing on one component.
+```json
+{
+  "results": {
+    "file1.txt": {
+      "entities": { "PERSON": ["John Doe"], "ORG": ["Parliament"] },
+      "topics": ["economy", "policy"],
+      "filtered_sentences": ["John Doe discussed the economy."],
+      "summary": "(If requested) Summary of file1.txt"
+    },
+    "file2.txt": {
+      "entities": { "PERSON": ["Jane Smith"], "ORG": ["Government"] },
+      "topics": ["healthcare", "reform"],
+      "filtered_sentences": ["Jane Smith debated healthcare reforms."],
+      "summary": "(If requested) Summary of file2.txt"
+    }
+  }
+}
+```
 
-**Submission Instructions**  
-Please email your submission as a Github link or zipped folder etc, along with any necessary instructions to run your service.
+## Usage Examples
 
-**Good Luck!**  
-We look forward to reviewing your solution - if you get stuck or just want to double check something please reach out.
+### Extract Metadata from Multiple Files with cURL
+
+```sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/extract_metadata' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt' \
+```
+
+### Querying Multiple Files for a Specific Entity with cURL (Without Summary)
+
+```sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/query?entity=Stuart%20Black' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt'
+```
+
+### Querying Multiple Files for a Specific Topic with cURL (With Summary)
+
+```sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/query?topic=government&summarize=false' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt'
+
+```
+
+## Notes
+
+- The API processes `.txt` files only.
+- For accurate entity extraction, ensure the text is well-structured.
+- Summarization is optional and can be requested by setting `summarize=true`.
+
+## License
+
+MIT License.
+
+## Notes
+
+- The API processes `.txt` files only.
+- For accurate entity extraction, ensure the text is well-structured.
+
+## License
+
+MIT License.
+
+## Evaluation
+
+In the absence of a groundtruth dataset, there are a few options depending on what you want to measure. Here is a table summarising the possibilities.
+
+| Aspect         | Method                                                           |
+| -------------- | ---------------------------------------------------------------- |
+| Quality        | LLM-as-a-judge, human ratings, embedding similarity              |
+| Consistency    | Repeated prompts, variance analysis                              |
+| Safety         | Toxicity/bias detection (Perspective API, OpenAI moderation API) |
+| Robustness     | Edge case testing, adversarial prompts                           |
+| Real-world Use | User feedback, logging & analytics                               |
+
+I will focus on Quality (as that is often what people mean vy evaluation), and consistency, since it is useful to know if API responses are consistent for production use.
+
+There was a recent paper on LLM-as-Judge which looks really promising [A Survey on LLM-as-a-Judge](https://arxiv.org/pdf/2411.15594}). I can see this being particularly powerful when you need a quick way to test how a cheaper model performs against a more expensive model. This is a real concern in application development since it's cost prohibative to use the best LLMs for many applications.
+
+## To Run Evaluation
+
+This is really a demo of how it would work since I don't have enough time to test it fully.
+
+1. Get the service running by following instructions above.
+2. I created a virtualenv using pyenv and installed additional packages required for this evaluation (I have highlighted in the requirements.txt which packages are used for evaluation).
+3. Run the evalution script as a module with arguments.
+
+```python
+python -m src.evaluation.relevancy_evaluation \
+  --query "Can you find any sentences that mention Stuart Black?" \
+  --entity "Stuart Black" \
+  --files \
+  "data/scottish_parliament_report_07_01_25.txt" \
+  "data/scottish_parliament_report_08_10_24.txt" \
+  "data/scottish_parliament_report_10_09_24.txt" \
+  "data/scottish_parliament_report_26_06_24.txt"
+
+```
