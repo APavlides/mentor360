@@ -146,8 +146,6 @@ async def query_meeting_minutes(
                 status_code=400, detail=f"Error reading file {file.filename}: {e}"
             )
 
-        entities = extract_entities(text)
-        topics = extract_topics(text)
         summary = generate_summary(text) if summarize else None
 
         filtered_sentences = [

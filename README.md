@@ -43,19 +43,17 @@ docker run -p 8000:8000 fastapi-parliamentary-meeting-analysis
 
 - **Querying**: Allows users to filter relevant sentences based on a specified entity name or topic. Optionally, it can also provide a summary of the text.
 - **Metadata Extraction**: Retrieves all detected entities and topics from uploaded files.
-- **Multiple File Support**: Users can upload multiple `.txt` files in a single request.
 
 ## Usage Examples
 
-### Extract Metadata from Multiple Files
+### Extract Metadata from Files
 
 ```sh
 curl -X 'POST' \
   'http://127.0.0.1:8000/extract_metadata' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'files=@data/scottish_parliament_report_07_01_25.txt' \
-  -F 'files=@data/scottish_parliament_report_08_10_24.txt'
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt'
 ```
 
 Output (Snippet due to length):
@@ -82,7 +80,7 @@ Output (Snippet due to length):
 }
 ```
 
-### Querying Multiple Files for a Specific Entity (Without Summary)
+### Querying Files for a Specific Entity (Without Summary)
 
 ```sh
 curl -X 'POST' \
@@ -107,13 +105,13 @@ Output:
 }
 ```
 
-### Querying Multiple Files for a Specific Topic (With Summary)
+### Querying Files for a Specific Topic (With Summary)
 
 The summary api can take a while on longer transcripts, so the example here uses the shortest transcript provided.
 
 ```sh
 curl -X 'POST' \
-  'http://127.0.0.1:8000/query?topic=government&summarize=false' \
+  'http://127.0.0.1:8000/query?topic=government&summarize=true' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
   -F 'files=@data/scottish_parliament_report_26_06_24.txt'
@@ -132,7 +130,7 @@ Output
         "We worked with the European Commission and that was resolved, but from our partners’ perspective—from a charities perspective and a local government perspective—there was never any pause.",
         "Most of the projects that are being funded by European funding are delivered by third sector organisations, local government and organisations such as NatureScot."
       ],
-      "summary": null
+      "summary": " The Deputy First Minister will take questions at the end of her statement...."
     }
   }
 }
