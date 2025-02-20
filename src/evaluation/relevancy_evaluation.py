@@ -26,10 +26,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize the OpenAI model for LlamaIndex
-llm = OpenAI(model="gpt-3.5-turbo", temperature=0.0)
+llm = OpenAI(model="gpt-4-turbo", temperature=0.0)
 
 # Initialize the OpenAI embedding model for indexing
-embed_model = OpenAIEmbedding(model="text-embedding-3-small")
+embed_model = OpenAIEmbedding(model="text-embedding-ada-002")
 
 # Load documents for LlamaIndex indexing
 documents_dir = os.path.join(os.getcwd(), "data")
@@ -73,9 +73,6 @@ def evaluate_relevancy(query: str, entity: str, file_paths: list):
                 for file_path in file_paths
             ]
 
-            # Debug: Print files to check correctness
-            print(f"Sending files: {files}")
-
             # Make the request to the FastAPI endpoint
             response = client.post(url, params=params, headers=headers, files=files)
 
@@ -102,12 +99,17 @@ def evaluate_relevancy(query: str, entity: str, file_paths: list):
         fastapi_sentences = {}
 
     # Query LlamaIndex for sentences containing the same entity
-    llama_index_response = query_engine.query(
-        f"What sentences contain the entity {entity}?"
+    query_str = (
+        f"You are an expert in Natural Language Processing. Your task is to identify common Named Entities (NER) in a given text. "
+        f"Return the sentences that contain the entity '{entity}' in a bullet-point format. "
+        "Provide just the sentences, no additional explanations."
     )
-    llama_index_sentences = llama_index_response.response.split(
-        "\n"
-    )  # Assuming sentences are split by new lines
+    llama_index_response = query_engine.query(query_str)
+
+    # Split by punctuation marks instead of new lines
+    import re
+
+    llama_index_sentences = re.split(r"(?<=[.!?])\s+", llama_index_response.response)
     logger.info(f"LlamaIndex retrieved sentences: {llama_index_sentences}")
 
     # Compare FastAPI response with LlamaIndex response using the evaluator
