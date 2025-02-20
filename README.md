@@ -139,7 +139,6 @@ Output
 ## Notes
 
 - The API processes `.txt` files only.
-- For accurate entity extraction, ensure the text is well-structured.
 - Summarization is optional and can be requested by setting `summarize=true`.
 
 ## Evaluation
