@@ -41,10 +41,7 @@ docker run -p 8000:8000 fastapi-parliamentary-meeting-analysis
 
 ### Features
 
-- **Summarization**: Generates a concise summary of the meeting minutes.
-- **Entity Extraction**: Identifies named entities (e.g., persons, organizations, dates) in the text.
-- **Topic Extraction**: Uses TF-IDF to determine key topics in the meeting minutes.
-- **Querying**: Allows users to filter relevant sentences based on a specified entity name or topic.
+- **Querying**: Allows users to filter relevant sentences based on a specified entity name or topic. Optionally, it can also provide a summary of the text.
 - **Metadata Extraction**: Retrieves all detected entities and topics from uploaded files.
 - **Multiple File Support**: Users can upload multiple `.txt` files in a single request.
 
