@@ -36,131 +36,179 @@ docker run -p 8000:8000 fastapi-parliamentary-meeting-analysis
 
 ## API Endpoints and curl Examples
 
-1. Summarize Meeting Minutes \
-   Endpoint: POST /summarize \
-   Description: Summarizes the given meeting text.
+# Parliamentary Meeting Minutes Query API
 
-Request Example:
+## Overview
+
+This API processes parliamentary meeting minutes and extracts relevant information based on user queries. It supports summarization, entity extraction, topic extraction, and querying by entity name or topic.
+
+## Features
+
+- **Summarization**: Generates a concise summary of the meeting minutes.
+- **Entity Extraction**: Identifies named entities (e.g., persons, organizations, dates) in the text.
+- **Topic Extraction**: Uses TF-IDF to determine key topics in the meeting minutes.
+- **Querying**: Allows users to filter relevant sentences based on a specified entity name or topic.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- `pip install -r requirements.txt`
+
+## Running the API
 
 ```sh
-curl -X POST "http://localhost:8000/summarize" \
-     -H "Content-Type: application/json" \
-     -d '{"text": "This is a sample meeting transcript discussing key points on AI regulation and ethical concerns."}'
+uvicorn main:app --reload
+```
+
+## API Endpoints
+
+# Parliamentary Meeting Minutes Query API
+
+## Overview
+
+This API processes parliamentary meeting minutes and extracts relevant information based on user queries. It supports summarization, entity extraction, topic extraction, and querying by entity name or topic.
+
+## Features
+
+- **Summarization (Optional)**: Generates a concise summary of the meeting minutes if requested.
+- **Entity Extraction**: Identifies named entities (e.g., persons, organizations, dates) in the text.
+- **Topic Extraction**: Uses TF-IDF to determine key topics in the meeting minutes.
+- **Querying**: Allows users to filter relevant sentences based on a specified entity name or topic.
+- **Metadata Extraction**: Retrieves all detected entities and topics from uploaded files.
+- **Multiple File Support**: Users can upload multiple `.txt` files in a single request.
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8+
+- `pip install -r requirements.txt`
+
+## Running the API
+
+```sh
+uvicorn main:app --reload
+```
+
+## API Endpoints
+
+### 1. Upload and Extract Metadata (Entities & Topics)
+
+**Endpoint:**
 
 ```
+POST /extract_metadata
+```
+
+**Request:**
+
+- Upload one or more `.txt` files containing meeting minutes.
+
+**Response:**
 
 ```json
 {
-  "summary": "The meeting discussed key points on AI regulation and ethical concerns."
-}
-```
-
-2. Extract Named Entities \
-   Endpoint: POST /extract_entities \
-   Description: Extracts named entities (persons, organizations, dates, etc.) from the text.
-
-Request Example:
-
-```sh
-curl -X POST "http://127.0.0.1:8000/extract_entities" \
-     -H "Content-Type: application/json" \
-     -d '{"text": "John Doe from OpenAI discussed new advancements in AI safety on March 12, 2023."}'
-
-```
-
-```json
-{
-  "entities": {
-    "PERSON": ["John Doe"],
-    "ORG": ["OpenAI"],
-    "DATE": ["March 12, 2023"]
-  }
-}
-```
-
-3. Extract Key Topics \
-   Endpoint: POST /extract_topics \
-   Description: Identifies key topics from the meeting transcript using TF-IDF.
-
-Request Example:
-
-```sh
-curl -X POST "http://127.0.0.1:8000/extract_topics" \
-     -H "Content-Type: application/json" \
-     -d '{"text": "The discussion focused on AI safety, ethics, and regulations."}'
-
-```
-
-```json
-{
-  "topics": ["AI", "safety", "ethics", "regulations"]
-}
-```
-
-4. Analyze Sentiment \
-   Endpoint: POST /analyze_sentiment \
-   Description: Analyzes sentiment in the meeting minutes and provides a count of positive, negative, and neutral sentiments.
-
-Request Example:
-
-```sh
-curl -X POST "http://127.0.0.1:8000/analyze_sentiment" \
-     -H "Content-Type: application/json" \
-     -d '{"text": "I am happy with the AI progress. However, some concerns remain about bias."}'
-```
-
-```json
-{
-  "sentiment_analysis": {
-    "POSITIVE": 1,
-    "NEGATIVE": 1
-  }
-}
-```
-
-5. Analyze Meeting Minutes (Full Analysis) \
-   Endpoint: POST /analyze_minutes \
-   Description: Provides a full analysis including summary, topics, sentiment, key events, and entity extraction.
-
-Request Example:
-
-```sh
-curl -X POST "http://127.0.0.1:8000/analyze_minutes" \
-     -H "Content-Type: application/json" \
-     -d '{"text": "Dr. Smith from MIT discussed AI ethics and safety at the UN conference.", "entity": "Dr. Smith"}'
-```
-
-```json
-{
-  "summary": "Dr. Smith from MIT discussed AI ethics and safety.",
-  "entities": {
-    "PERSON": ["Dr. Smith"],
-    "ORG": ["MIT", "UN"]
-  },
-  "topics": ["AI", "ethics", "safety"],
-  "key_events": [
-    {
-      "sentence": "Dr. Smith from MIT discussed AI ethics and safety at the UN conference.",
-      "entities": ["Dr. Smith", "MIT", "UN"]
+  "metadata": {
+    "file1.txt": {
+      "entities": { "PERSON": ["John Doe"], "ORG": ["Parliament"] },
+      "topics": ["economy", "policy"]
+    },
+    "file2.txt": {
+      "entities": { "PERSON": ["Jane Smith"], "ORG": ["Government"] },
+      "topics": ["healthcare", "reform"]
     }
-  ],
-  "sentiment_analysis": {
-    "NEUTRAL": 1
-  },
-  "relevant_contributions": [
-    "Dr. Smith from MIT discussed AI ethics and safety at the UN conference."
-  ],
-  "heuristic_entities": {
-    "PERSON": ["Dr. Smith"],
-    "ORG": ["MIT", "UN"],
-    "DATE": []
-  },
-  "evaluation": {
-    "PERSON": ["Dr. Smith"],
-    "ORG": ["MIT", "UN"]
   }
 }
 ```
+
+### 2. Query Meeting Minutes by Entity or Topic
+
+**Endpoint:**
+
+```
+POST /query
+```
+
+**Request:**
+
+- Upload one or more `.txt` files.
+- (Optional) Provide an entity name or topic as query parameters.
+- (Optional) Include `summarize=true` in the query to enable summarization.
+
+**Response:**
+
+```json
+{
+  "results": {
+    "file1.txt": {
+      "entities": { "PERSON": ["John Doe"], "ORG": ["Parliament"] },
+      "topics": ["economy", "policy"],
+      "filtered_sentences": ["John Doe discussed the economy."],
+      "summary": "(If requested) Summary of file1.txt"
+    },
+    "file2.txt": {
+      "entities": { "PERSON": ["Jane Smith"], "ORG": ["Government"] },
+      "topics": ["healthcare", "reform"],
+      "filtered_sentences": ["Jane Smith debated healthcare reforms."],
+      "summary": "(If requested) Summary of file2.txt"
+    }
+  }
+}
+```
+
+## Usage Examples
+
+### Extract Metadata from Multiple Files with cURL
+
+```sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/extract_metadata' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt' \
+```
+
+### Querying Multiple Files for a Specific Entity with cURL (Without Summary)
+
+```sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/query?entity=Stuart%20Black' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt'
+```
+
+### Querying Multiple Files for a Specific Topic with cURL (With Summary)
+
+```sh
+curl -X 'POST' \
+  'http://127.0.0.1:8000/query?topic=government&summarize=false' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: multipart/form-data' \
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt'
+
+```
+
+## Notes
+
+- The API processes `.txt` files only.
+- For accurate entity extraction, ensure the text is well-structured.
+- Summarization is optional and can be requested by setting `summarize=true`.
+
+## License
+
+MIT License.
+
+## Notes
+
+- The API processes `.txt` files only.
+- For accurate entity extraction, ensure the text is well-structured.
+
+## License
+
+MIT License.
 
 ## Evaluation
 

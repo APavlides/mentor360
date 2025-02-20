@@ -1,11 +1,12 @@
 import logging
 import re
-from collections import Counter, defaultdict
+from collections import defaultdict
+from typing import List
 
 import nltk
 import spacy
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from nltk.tokenize import sent_tokenize
 from pydantic import BaseModel
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -19,27 +20,16 @@ logger = logging.getLogger(__name__)
 
 nltk.download("punkt")
 
-# Load NLP models and log the process (the api will not return anything if the models fail to load)
+# Load NLP models
 try:
     logger.info("Loading NLP models...")
     nlp = spacy.load("en_core_web_sm")
-    logger.info("Loaded spaCy model 'en_core_web_sm'.")
-except Exception as e:
-    logger.error(f"Error loading spaCy model: {e}")
-
-try:
-    logger.info("Loading summarization model...")
     summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
-    logger.info("Summarization model loaded.")
-except Exception as e:
-    logger.error(f"Error loading summarization model: {e}")
-
-try:
-    logger.info("Loading sentiment analysis model...")
     sentiment_analyzer = pipeline("sentiment-analysis")
-    logger.info("Sentiment analysis model loaded.")
+    logger.info("All NLP models loaded successfully.")
 except Exception as e:
-    logger.error(f"Error loading sentiment analysis model: {e}")
+    logger.error(f"Error loading NLP models: {e}")
+    raise
 
 # Configurations
 try:
@@ -58,67 +48,28 @@ SUMMARIZATION_MIN_LENGTH = config["summarization"]["min_length"]
 CHUNK_SIZE = config["summarization"]["chunk_size"]
 
 
-# Input model
-class MeetingMinutesRequest(BaseModel):
-    text: str
-    entity: str = None  # Optional entity query
-
-
 # Named Entity Extraction
 def extract_entities(text: str):
-    logger.info("Extracting named entities...")
     doc = nlp(text)
-    entities = defaultdict(list)
-
+    entities = defaultdict(set)
     for ent in doc.ents:
-        entities[ent.label_].append(ent.text)
-
-    logger.info(f"Extracted entities: {dict(entities)}")
-    return {label: list(set(names)) for label, names in entities.items()}
+        entities[ent.label_].add(ent.text)
+    return {label: list(names) for label, names in entities.items()}
 
 
 # Extract topics using TF-IDF
 def extract_topics(text: str, top_n: int = 5):
-    logger.info("Extracting topics using TF-IDF...")
     sentences = sent_tokenize(text)
     vectorizer = TfidfVectorizer(stop_words="english")
     tfidf_matrix = vectorizer.fit_transform(sentences)
     feature_names = vectorizer.get_feature_names_out()
     scores = tfidf_matrix.sum(axis=0).A1
     topic_scores = sorted(zip(feature_names, scores), key=lambda x: x[1], reverse=True)
-    topics = [topic for topic, _ in topic_scores[:top_n]]
-    logger.info(f"Extracted topics: {topics}")
-    return topics
+    return [topic for topic, _ in topic_scores[:top_n]]
 
 
-# Extract key events (MP contributions and timestamps)
-def extract_key_events(text: str):
-    logger.info("Extracting key events...")
-    doc = nlp(text)
-    key_events = []
-
-    for sent in doc.sents:
-        entities = [ent.text for ent in sent.ents if ent.label_ in ["PERSON", "ORG"]]
-        if entities:
-            key_events.append({"sentence": sent.text, "entities": entities})
-
-    logger.info(f"Extracted key events: {key_events}")
-    return key_events
-
-
-# Sentiment Analysis
-def analyze_sentiment(text: str):
-    logger.info("Analyzing sentiment...")
-    sentences = sent_tokenize(text)
-    sentiments = [sentiment_analyzer(sentence)[0] for sentence in sentences]
-    sentiment_counts = Counter([s["label"] for s in sentiments])
-    logger.info(f"Sentiment analysis result: {dict(sentiment_counts)}")
-    return dict(sentiment_counts)
-
-
-# Summarization with chunking
+# Chunk text for summarization
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
-    logger.info("Chunking text...")
     sentences = re.split(r"(?<=[.!?])\s+", text)
     chunks, current_chunk = [], ""
 
@@ -132,12 +83,11 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
     if current_chunk:
         chunks.append(current_chunk.strip())
 
-    logger.info(f"Text chunked into {len(chunks)} parts.")
     return chunks
 
 
+# Generate summary
 def generate_summary(text: str):
-    logger.info("Generating summary...")
     chunks = chunk_text(text)
     summaries = []
 
@@ -150,96 +100,65 @@ def generate_summary(text: str):
                 do_sample=False,
             )[0]["summary_text"]
             summaries.append(summary)
-            logger.info(f"Summary generated for chunk: {summary}")
         except Exception as e:
-            summaries.append("[Summary unavailable due to error]")
             logger.error(f"Summarization error: {e}")
+            summaries.append("[Summary unavailable]")
 
     return " ".join(summaries)
 
 
-# Simple Regex/Heuristic Evaluation
-def regex_based_extraction(text: str):
-    logger.info("Performing regex-based entity extraction...")
-    regex_patterns = {
-        "PERSON": r"[A-Z][a-z]+(?:\s[A-Z][a-z]+)*",  # Capitalized names
-        "DATE": r"\b\d{1,2}\s[A-Za-z]+\s\d{4}\b",  # e.g., 12 March 2023
-        "ORG": r"[A-Z][a-z]+(?:\s[A-Z][a-z]+)*",  # Simple org name heuristic
-    }
+@app.post("/extract_metadata")
+async def extract_metadata(files: List[UploadFile] = File(...)):
+    metadata = {}
 
-    extracted = {
-        label: re.findall(pattern, text) for label, pattern in regex_patterns.items()
-    }
-    logger.info(f"Regex extraction result: {extracted}")
-    return extracted
+    for file in files:
+        try:
+            content = await file.read()
+            text = content.decode("utf-8")
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Error reading file {file.filename}: {e}"
+            )
 
+        metadata[file.filename] = {
+            "entities": extract_entities(text),
+            "topics": extract_topics(text),
+        }
 
-@app.post("/summarize")
-async def summarize_text(request: MeetingMinutesRequest):
-    if not request.text:
-        raise HTTPException(status_code=400, detail="Meeting text is required")
-    logger.info(
-        f"Summarizing text for request: {request.text[:30]}..."
-    )  # log first 30 chars for brevity
-    return {"summary": generate_summary(request.text)}
+    return {"metadata": metadata}
 
 
-@app.post("/extract_entities")
-async def extract_entities_endpoint(request: MeetingMinutesRequest):
-    if not request.text:
-        raise HTTPException(status_code=400, detail="Meeting text is required")
-    logger.info(f"Extracting entities from text: {request.text[:30]}...")
-    return {"entities": extract_entities(request.text)}
+@app.post("/query")
+async def query_meeting_minutes(
+    files: List[UploadFile] = File(...),
+    entity: str = None,
+    topic: str = None,
+    summarize: bool = False,
+):
+    results = {}
 
+    for file in files:
+        try:
+            content = await file.read()
+            text = content.decode("utf-8")
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Error reading file {file.filename}: {e}"
+            )
 
-@app.post("/extract_topics")
-async def extract_topics_endpoint(request: MeetingMinutesRequest):
-    if not request.text:
-        raise HTTPException(status_code=400, detail="Meeting text is required")
-    logger.info(f"Extracting topics from text: {request.text[:30]}...")
-    return {"topics": extract_topics(request.text)}
+        entities = extract_entities(text)
+        topics = extract_topics(text)
+        summary = generate_summary(text) if summarize else None
 
-
-@app.post("/analyze_sentiment")
-async def analyze_sentiment_endpoint(request: MeetingMinutesRequest):
-    if not request.text:
-        raise HTTPException(status_code=400, detail="Meeting text is required")
-    logger.info(f"Analyzing sentiment for text: {request.text[:30]}...")
-    return {"sentiment_analysis": analyze_sentiment(request.text)}
-
-
-@app.post("/analyze_minutes")
-async def analyze_minutes(request: MeetingMinutesRequest):
-    if not request.text:
-        raise HTTPException(status_code=400, detail="Meeting text is required")
-    logger.info(f"Analyzing meeting minutes for text: {request.text[:30]}...")
-
-    summary = generate_summary(request.text)
-    entities = extract_entities(request.text)
-    heuristic_entities = regex_based_extraction(request.text)
-    topics = extract_topics(request.text)
-    key_events = extract_key_events(request.text)
-    sentiment_analysis = analyze_sentiment(request.text)
-
-    relevant_contributions = []
-    if request.entity:
-        relevant_contributions = [
-            sent for sent in sent_tokenize(request.text) if request.entity in sent
+        filtered_sentences = [
+            sent
+            for sent in sent_tokenize(text)
+            if (entity and entity in sent) or (topic and topic in sent)
         ]
 
-    evaluation = {
-        label: set(entities.get(label, [])) & set(heuristic_entities.get(label, []))
-        for label in heuristic_entities
-    }
+        results[file.filename] = {
+            "filtered_sentences": filtered_sentences,
+            "summary": summary,
+        }
 
-    logger.info("Analysis completed successfully.")
-    return {
-        "summary": summary,
-        "entities": entities,
-        "topics": topics,
-        "key_events": key_events,
-        "sentiment_analysis": sentiment_analysis,
-        "relevant_contributions": relevant_contributions,
-        "heuristic_entities": heuristic_entities,
-        "evaluation": evaluation,
-    }
+    return {"results": results}
