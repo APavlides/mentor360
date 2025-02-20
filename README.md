@@ -54,7 +54,8 @@ curl -X 'POST' \
   'http://127.0.0.1:8000/extract_metadata' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'files=@data/scottish_parliament_report_07_01_25.txt'
+  -F 'files=@data/scottish_parliament_report_07_01_25.txt' \
+  -F 'files=@data/scottish_parliament_report_08_10_24.txt'
 ```
 
 Output (Snippet due to length):
