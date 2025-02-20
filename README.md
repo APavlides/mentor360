@@ -161,8 +161,10 @@ There was a recent paper on LLM-as-Judge which looks really promising [A Survey 
 This is really a demo of how it would work since there isn't time to fully flesh it out. This could be expanded to all api endpoints, but this only looks at an entry search. Essentially, you use a powerful LLM such as gpt-4 to do the same queries of the data you are interested in and then you compare the API service outputs with that of the LLM. This could be useful in various situations especially when using "inferior" or cheaper approaches to certain tasks.
 
 1. Get the service running by following instructions above.
-2. I created a virtualenv using pyenv and installed additional packages required for this evaluation (I have highlighted in the requirements.txt which packages are used for evaluation).
-3. Run the evalution script as a module with arguments.
+2. I created an openai account and API key
+3. Add API key to the .env file and rename the file to .env
+4. Creat a virtualenv using pyenv (or tool of your choice) and install packages required for this evaluation (I have highlighted in the requirements.txt which packages are used for evaluation).
+5. Run the evalution script as a module with arguments.
 
 ```python
 python -m src.evaluation.relevancy_evaluation \
