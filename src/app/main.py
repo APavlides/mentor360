@@ -19,6 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 nltk.download("punkt")
+nltk.download("punkt_tab")
 
 # Load NLP models
 try:
