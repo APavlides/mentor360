@@ -9,7 +9,7 @@ This FastAPI service queries parliamentary meeting minutes and returns relevant 
 - Docker
 - Docker Compose
 - MacOS (ARM64) operating system
-- Python 3.9 for running the evaluation locally
+- Python 3.9.19 for running the evaluation locally
 
 ## Instructions for How to Run the Service
 
